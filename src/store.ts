@@ -19,6 +19,7 @@ function cascadeEvict(startId: NodeId): void {
   const queue: NodeId[] = [startId];
   while (queue.length > 0) {
     const id = queue.shift()!;
+    if (!nodeStore.has(id)) continue;
     const count = refCount.get(id) ?? 0;
     if (count > 0) continue;
     

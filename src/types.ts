@@ -26,11 +26,11 @@ export interface LineageError extends Error {
   __operation?: string;
 }
 
-export function getErrorLineage(err: unknown): { parentIds: NodeId[], operation: string } | undefined {
+export function getErrorLineage(err: unknown): { parentIds: NodeId[], operation?: string } | undefined {
   if (err instanceof Error && "__lineageParents" in err) {
     return {
       parentIds: (err as LineageError).__lineageParents ?? [],
-      operation: (err as LineageError).__operation ?? "unknown"
+      operation: (err as LineageError).__operation
     };
   }
   return undefined;

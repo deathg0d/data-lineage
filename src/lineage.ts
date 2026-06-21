@@ -10,7 +10,10 @@ function getNodeId(val: unknown): NodeId | undefined {
 
 function snapshot(value: unknown): unknown {
   if (value === null || typeof value !== "object") return value;
-  if (Array.isArray(value)) return value.slice(0, 5);
+  if (Array.isArray(value)) {
+    const sliced = value.slice(0, 5);
+    return value.length > 5 ? [...sliced, `...(${value.length - 5} more)`] : sliced;
+  }
   try {
     const name = value.constructor?.name;
     const spread = { ...value };
@@ -29,6 +32,13 @@ function safeStringify(val: unknown): string {
 }
 
 function attachRef<T extends object>(value: T, id: NodeId): T {
+  if (Object.isFrozen(value)) {
+    return Object.defineProperty(
+      Object.create(Object.getPrototypeOf(value), Object.getOwnPropertyDescriptors(value)),
+      LINEAGE_SYMBOL,
+      { value: id, enumerable: false, writable: false, configurable: true }
+    ) as T;
+  }
   Object.defineProperty(value, LINEAGE_SYMBOL, {
     value: id,
     enumerable: false,
@@ -119,16 +129,25 @@ export function printLineage(val: unknown): string {
 
   const sorted: LineageNode[] = [];
   const visited = new Set<NodeId>();
+  const stack: Array<{ id: NodeId; phase: "enter" | "exit" }> = [
+    { id: rootId, phase: "enter" }
+  ];
 
-  function visit(id: NodeId) {
-    if (visited.has(id)) return;
+  while (stack.length > 0) {
+    const { id, phase } = stack.pop()!;
+    if (phase === "exit") {
+      sorted.push(allNodes.get(id)!);
+      continue;
+    }
+    if (visited.has(id)) continue;
     visited.add(id);
     const node = allNodes.get(id);
-    if (!node) return;
-    for (const parentId of node.parentIds) visit(parentId);
-    sorted.push(node);
+    if (!node) continue;
+    stack.push({ id, phase: "exit" });
+    for (const parentId of node.parentIds) {
+      if (!visited.has(parentId)) stack.push({ id: parentId, phase: "enter" });
+    }
   }
-  visit(rootId);
 
   const lines: string[] = [];
   for (let i = 0; i < sorted.length; i++) {
