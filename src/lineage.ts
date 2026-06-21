@@ -1,12 +1,5 @@
 import { LineageNode, NodeId, uuid } from "./types";
-import { registerNode, lookupNode, registerTracked, trackingMap } from "./store";
-
-function getNodeId(val: unknown): NodeId | undefined {
-  if (val !== null && typeof val === "object") {
-    return trackingMap.get(val);
-  }
-  return undefined;
-}
+import { registerNode, lookupNode, registerTracked, getNodeId } from "./store";
 
 function snapshot(value: unknown): unknown {
   if (value === null || typeof value !== "object") return value;
@@ -52,6 +45,11 @@ function makeNode(
   };
 }
 
+/**
+ * Mark an object value as the origin of a lineage chain.
+ * Note: The value is snapshotted at tracking time. Subsequent mutations 
+ * to the object will not be reflected in the lineage snapshot.
+ */
 export function track<T extends object>(value: T, sourceName: string): T {
   const node = makeNode(sourceName, [], undefined, snapshot(value));
   registerNode(node);
@@ -59,6 +57,10 @@ export function track<T extends object>(value: T, sourceName: string): T {
   return value;
 }
 
+/**
+ * Record a transformation from inputs to an output.
+ * Note: The output is snapshotted at tracking time.
+ */
 export function transform<T extends object>(
   output: T,
   operationName: string,
@@ -105,7 +107,7 @@ export function printLineage(val: unknown): string {
   const allNodes = new Map<NodeId, LineageNode>();
   const queue: NodeId[] = [rootId];
   while (queue.length > 0) {
-    const id = queue.shift()!;
+    const id = queue.pop()!;
     if (allNodes.has(id)) continue;
     const node = lookupNode(id);
     if (!node) continue;

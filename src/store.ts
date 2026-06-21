@@ -2,7 +2,14 @@ import { LineageNode, NodeId } from "./types";
 
 const nodeStore = new Map<NodeId, LineageNode>();
 const refCount = new Map<NodeId, number>();
-export const trackingMap = new WeakMap<object, NodeId>();
+const trackingMap = new WeakMap<object, NodeId>();
+
+export function getNodeId(val: unknown): NodeId | undefined {
+  if (val !== null && typeof val === "object") {
+    return trackingMap.get(val as object);
+  }
+  return undefined;
+}
 
 export function registerNode(node: LineageNode): void {
   nodeStore.set(node.id, node);
@@ -62,4 +69,7 @@ export function clearAll(): void {
   nodeStore.clear();
   refCount.clear();
   // WeakMap doesn't need (or support) clear()
+  // Note: FinalizationRegistry callbacks from before this call may still fire.
+  // cascadeEvict handles this safely (nodeStore.has() guard), but eviction
+  // logging may appear after clearAll() in test environments.
 }
