@@ -1,0 +1,64 @@
+# Node dependencies
+node_modules/
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+*.log
+
+# Runtime data
+pids/
+*.pid
+*.seed
+*.pid.lock
+
+# Build output
+dist/
+build/
+lib/
+out/
+
+# Coverage
+coverage/
+.nyc_output/
+
+# TypeScript
+*.tsbuildinfo
+
+# Env files
+.env
+.env.*
+
+# Editor directories and files
+.vscode/
+.idea/
+*.sublime-workspace
+
+# macOS
+.DS_Store
+
+# Temporary files
+*.tmp
+*.temp
+*.swp
+
+# Test cache
+.jest/cache/
+
+# Parcel, Next, Vercel, and other caches
+.parcel-cache/
+.next/
+.vercel/
+.cache/
+
+# Yarn PnP
+.pnp.cjs
+.pnp.js
+
+# Misc
+*.tgz
+*.local
+npm-debug.log*
+yarn-error.log*
