@@ -30,6 +30,8 @@ Unlike standard tracing or logging, `data-lineage` decouples the graph from the 
 npm install data-lineage
 ```
 
+[![npm version](https://badge.fury.io/js/data-lineage.svg)](https://badge.fury.io/js/data-lineage)
+
 ---
 
 ## Usage
