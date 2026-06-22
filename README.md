@@ -164,7 +164,17 @@ track(frozen, "env"); // Works perfectly, zero mutation.
 ### 3. `wrapFunction` Traces Boundaries, Not Internals
 `wrapFunction` captures the inputs going into your function, and the output coming out. It **does not** trace intermediate local variables calculated inside the function body. If you need deep internal tracing, you must call `transform()` manually within the function.
 
-### 4. Memory Management (GC & Teardown)
+### 4. Primitive Extraction
+When a primitive property is extracted from a tracked object (e.g. `const price = invoice.amount;`), that primitive loses its identity and carries no lineage. Subsequent operations on that primitive are untracked. If you need to trace primitive values through complex calculations, wrap them back into objects: `const trackedPrice = { value: invoice.amount };`.
+
+### 5. Sensitive Data Redaction
+Because `track()` and `transform()` snapshot the object's properties at tracking time, sensitive information (passwords, tokens) can inadvertently leak into the lineage graph. You can provide an optional `redact` hook to scrub sensitive data:
+
+```typescript
+const user = track({ id: 1, secret: "XYZ" }, "db", {
+  redact: (key, value) => key === "secret" ? "[REDACTED]" : value
+});
+```
 This library uses `FinalizationRegistry` to automatically garbage collect DAG nodes when your JS objects are destroyed. 
 
 However, `FinalizationRegistry` is not guaranteed to fire instantly, or at all in short-lived processes (like CLI scripts or Unit Tests). To prevent memory leaks between test runs, explicitly clear the store:

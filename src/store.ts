@@ -51,8 +51,17 @@ const registry = new FinalizationRegistry((id: NodeId) => {
 });
 
 export function registerTracked(value: object, id: NodeId): void {
+  if (trackingMap.has(value)) {
+    // Unregister the previous token if this object is being re-tracked
+    const prevToken = trackingMap.get(value);
+    if (prevToken) {
+      registry.unregister(prevToken);
+    }
+  }
+  
+  // Use the node ID as the unregister token
   trackingMap.set(value, id);
-  registry.register(value, id);
+  registry.register(value, id, id);
 }
 
 export function evictBefore(timestamp: number): void {

@@ -110,7 +110,54 @@ describe("data-lineage", () => {
   });
 
   describe("wrapFunction & Error Handling", () => {
-    it("should automatically track boundaries for a wrapped function", () => {
+    it("should handle async functions in wrapFunction", async () => {
+      const asyncAdd = wrapFunction(async (a: { val: number }, b: { val: number }) => {
+        return { val: a.val + b.val };
+      }, "async_addition");
+
+      const x = track({ val: 10 }, "input_x");
+      const y = track({ val: 20 }, "input_y");
+      
+      const result = await asyncAdd(x, y);
+      const lineage = getLineage(result);
+
+      assert.strictEqual(lineage?.operation, "async_addition");
+      assert.strictEqual(lineage?.parentIds.length, 2);
+    });
+
+    it("should allow data redaction via options", () => {
+      const user = track(
+        { id: 1, password: "supersecret", session: "token" }, 
+        "auth",
+        { redact: (k, v) => ["password", "session"].includes(k) ? "[REDACTED]" : v }
+      );
+      
+      const lineage = getLineage(user);
+      const snap = lineage?.valueSnapshot as any;
+      
+      assert.strictEqual(snap.id, 1);
+      assert.strictEqual(snap.password, "[REDACTED]");
+      assert.strictEqual(snap.session, "[REDACTED]");
+    });
+
+    it("should safely handle getters without invoking side effects", () => {
+      let getterInvoked = false;
+      const obj = {
+        normal: 123,
+        get evil() {
+          getterInvoked = true;
+          return "side effect";
+        }
+      };
+
+      const trackedObj = track(obj, "getter_test");
+      const lineage = getLineage(trackedObj);
+      const snap = lineage?.valueSnapshot as any;
+
+      assert.strictEqual(getterInvoked, false, "Getter should not be invoked during snapshot");
+      assert.strictEqual(snap.normal, 123);
+      assert.strictEqual(snap.evil, "[getter]");
+    });
       const add = wrapFunction((a: { val: number }, b: { val: number }) => {
         return { val: a.val + b.val };
       }, "addition");

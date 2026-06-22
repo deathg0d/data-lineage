@@ -1,7 +1,7 @@
 import { LineageNode, NodeId, uuid } from "./types";
 import { registerNode, lookupNode, registerTracked, getNodeId } from "./store";
 
-function snapshot(value: unknown): unknown {
+function snapshot(value: unknown, redact?: (key: string, value: unknown) => unknown): unknown {
   if (value === null || typeof value !== "object") return value;
   if (Array.isArray(value)) {
     return value.length > 5
@@ -13,7 +13,15 @@ function snapshot(value: unknown): unknown {
     const keys = Object.keys(value);
     const limited = keys.slice(0, 10);
     const result: Record<string, unknown> = {};
-    for (const k of limited) result[k] = (value as any)[k];
+    for (const k of limited) {
+      const desc = Object.getOwnPropertyDescriptor(value, k);
+      if (desc && desc.get) {
+        result[k] = "[getter]";
+      } else {
+        const val = (value as any)[k];
+        result[k] = redact ? redact(k, val) : val;
+      }
+    }
     if (keys.length > 10) result["__truncated"] = `...(${keys.length - 10} more properties)`;
     return name && name !== "Object" ? { __type: name, ...result } : result;
   } catch {
@@ -50,8 +58,8 @@ function makeNode(
  * Note: The value is snapshotted at tracking time. Subsequent mutations 
  * to the object will not be reflected in the lineage snapshot.
  */
-export function track<T extends object>(value: T, sourceName: string): T {
-  const node = makeNode(sourceName, [], undefined, snapshot(value));
+export function track<T extends object>(value: T, sourceName: string, options?: TrackOptions): T {
+  const node = makeNode(sourceName, [], undefined, snapshot(value, options?.redact));
   registerNode(node);
   registerTracked(value, node.id);
   return value;
@@ -64,26 +72,31 @@ export function track<T extends object>(value: T, sourceName: string): T {
 export function transform<T extends object>(
   output: T,
   operationName: string,
-  inputs: unknown[]
+  inputs: unknown[],
+  options?: TrackOptions
 ): T {
   const parentIds = inputs
     .map(getNodeId)
     .filter((id): id is NodeId => id !== undefined);
 
-  const node = makeNode("transform", parentIds, operationName, snapshot(output));
+  const node = makeNode("transform", parentIds, operationName, snapshot(output, options?.redact));
   registerNode(node);
   registerTracked(output, node.id);
   return output;
 }
 
 export function wrapFunction<Args extends unknown[], R extends object>(
-  fn: (...args: Args) => R,
-  operationName: string = fn.name || "anonymous"
-): (...args: Args) => R {
-  return (...args: Args): R => {
+  fn: (...args: Args) => R | Promise<R>,
+  operationName: string = fn.name || "anonymous",
+  options?: TrackOptions
+): (...args: Args) => R | Promise<R> {
+  return (...args: Args): R | Promise<R> => {
     try {
       const result = fn(...args);
-      return transform(result, operationName, args);
+      if (result instanceof Promise) {
+        return result.then(resolved => transform(resolved, operationName, args, options));
+      }
+      return transform(result, operationName, args, options);
     } catch (err) {
       if (err instanceof Error) {
         const parentIds = args.map(getNodeId).filter((id): id is NodeId => id !== undefined);

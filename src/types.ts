@@ -13,6 +13,10 @@ export function uuid(): NodeId {
   return globalThis.crypto.randomUUID();
 }
 
+export interface TrackOptions {
+  redact?: (key: string, value: unknown) => unknown;
+}
+
 export interface LineageError extends Error {
   __lineageParents?: NodeId[];
   __operation?: string;
