@@ -1,5 +1,5 @@
 {
-  "name": "data-lineage",
+  "name": "lineage",
   "version": "1.0.0",
   "description": "Zero-cost data provenance tracking",
   "main": "dist/index.js",
