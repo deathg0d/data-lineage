@@ -3,10 +3,21 @@ import { registerNode, lookupNode, registerTracked, getNodeId } from "./store";
 
 function snapshot(value: unknown, redact?: (key: string, value: unknown) => unknown): unknown {
   if (value === null || (typeof value !== "object" && typeof value !== "function")) return value;
+
+  const makeSafe = (rawVal: unknown) => {
+    if (rawVal !== null && (typeof rawVal === "object" || typeof rawVal === "function")) {
+      if (Array.isArray(rawVal)) return "[Array]";
+      if (typeof rawVal === "function") return "[Function]";
+      return "[Object]";
+    }
+    return rawVal;
+  };
+
   if (Array.isArray(value)) {
+    const safe = value.slice(0, 5).map(makeSafe);
     return value.length > 5
-      ? [...value.slice(0, 5), `...(${value.length - 5} more)`]
-      : value.slice();
+      ? [...safe, `...(${value.length - 5} more)`]
+      : safe;
   }
   try {
     const name = value.constructor?.name;
@@ -20,8 +31,14 @@ function snapshot(value: unknown, redact?: (key: string, value: unknown) => unkn
       if (desc && desc.get) {
         result[k] = "[getter]";
       } else {
-        const val = (value as any)[k];
-        result[k] = redact ? redact(k, val) : val;
+        const rawVal = (value as any)[k];
+        const redactedVal = redact ? redact(k, rawVal) : rawVal;
+        
+        // Break object references to prevent anchoring objects in the nodeStore,
+        // which would defeat the FinalizationRegistry GC architecture.
+        // This runs AFTER redaction so the redact hook gets full context, and
+        // we guarantee no live objects leak into the snapshot.
+        result[k] = makeSafe(redactedVal);
       }
     }
     if (keys.length > 10) result["__truncated"] = `...(${keys.length - 10} more properties)`;

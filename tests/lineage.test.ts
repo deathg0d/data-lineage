@@ -696,17 +696,40 @@ describe("data-lineage", () => {
       assert.strictEqual(snap.__type, undefined);
     });
 
-    it("Circular reference object: printLineage output contains '[circular]' and does not throw", () => {
+    it("Circular reference object: printLineage output safely replaces the circular reference with '[Object]' and does not throw", () => {
       const obj: any = { data: 1 };
       obj.self = obj;
       track(obj, "circular");
       const out = printLineage(obj);
-      assert.match(out, /"\[circular\]"/);
+      assert.match(out, /"\[Object\]"/);
     });
 
     it("null passed as a transform input: handled without throwing, not included in parentIds", () => {
       const obj = transform({}, "null_input", [null]);
       assert.deepStrictEqual(getLineage(obj)?.parentIds, []);
+    });
+
+    it("Nested objects, arrays, and functions in objects are replaced with sentinels to prevent memory leaks", () => {
+      const obj = track({
+        num: 42,
+        nestedObj: { a: 1 },
+        nestedArr: [1, 2],
+        nestedFunc: () => {}
+      }, "nested_test");
+      const snap = getLineage(obj)?.valueSnapshot as any;
+      assert.strictEqual(snap.num, 42);
+      assert.strictEqual(snap.nestedObj, "[Object]");
+      assert.strictEqual(snap.nestedArr, "[Array]");
+      assert.strictEqual(snap.nestedFunc, "[Function]");
+    });
+
+    it("Array elements that are objects/arrays/functions are replaced with sentinels to prevent memory leaks", () => {
+      const arr = track([42, { a: 1 }, [1, 2], () => {}], "nested_arr_test");
+      const snap = getLineage(arr)?.valueSnapshot as any[];
+      assert.strictEqual(snap[0], 42);
+      assert.strictEqual(snap[1], "[Object]");
+      assert.strictEqual(snap[2], "[Array]");
+      assert.strictEqual(snap[3], "[Function]");
     });
   });
 });
