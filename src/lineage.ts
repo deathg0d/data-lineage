@@ -2,7 +2,7 @@ import { LineageNode, NodeId, uuid, TrackOptions } from "./types";
 import { registerNode, lookupNode, registerTracked, getNodeId } from "./store";
 
 function snapshot(value: unknown, redact?: (key: string, value: unknown) => unknown): unknown {
-  if (value === null || typeof value !== "object") return value;
+  if (value === null || (typeof value !== "object" && typeof value !== "function")) return value;
   if (Array.isArray(value)) {
     return value.length > 5
       ? [...value.slice(0, 5), `...(${value.length - 5} more)`]
@@ -138,6 +138,9 @@ export function getLineage(val: unknown): LineageNode | undefined {
 export function printLineage(val: unknown): string {
   const rootId = getNodeId(val);
   if (!rootId) return "No lineage found.";
+
+  const rootNode = lookupNode(rootId);
+  if (!rootNode) return "No lineage found.";
 
   const lines: string[] = [];
   const visited = new Set<NodeId>();

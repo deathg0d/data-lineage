@@ -3,9 +3,10 @@ import { LineageNode, NodeId } from "./types";
 const nodeStore = new Map<NodeId, LineageNode>();
 const refCount = new Map<NodeId, number>();
 const trackingMap = new WeakMap<object, NodeId>();
+const tokenMap = new WeakMap<object, object>();
 
 export function getNodeId(val: unknown): NodeId | undefined {
-  if (val !== null && typeof val === "object") {
+  if (val !== null && (typeof val === "object" || typeof val === "function")) {
     return trackingMap.get(val as object);
   }
   return undefined;
@@ -51,18 +52,17 @@ const registry = new FinalizationRegistry((id: NodeId) => {
 });
 
 export function registerTracked(value: object, id: NodeId): void {
-  if (trackingMap.has(value)) {
-    // Unregister the previous token if this object is being re-tracked
-    // Note: NodeId strings act as their own unregister tokens here
-    const prevToken = trackingMap.get(value);
-    if (prevToken) {
-      registry.unregister(prevToken);
-    }
+  // Unregister previous token if this object is being re-tracked
+  const prevToken = tokenMap.get(value);
+  if (prevToken) {
+    registry.unregister(prevToken);
   }
-  
-  // Use the node ID as the unregister token
+
+  // Token must be an object — wrap the id
+  const token = { id };
+  tokenMap.set(value, token);
   trackingMap.set(value, id);
-  registry.register(value, id, id);
+  registry.register(value, id, token);
 }
 
 export function evictBefore(timestamp: number): void {
