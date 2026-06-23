@@ -170,6 +170,13 @@ const user = track({ id: 1, secret: "XYZ" }, "db", {
   redact: (key, value) => key === "secret" ? "[REDACTED]" : value
 });
 ```
+### 6. Snapshot Constraints & Memory Limits
+To guarantee that the history graph doesn't create memory leaks or bloat the V8 heap, the `snapshot` function enforces strict serialization rules at capture time:
+* **Nested References:** Nested objects, arrays, and functions are replaced with safe string sentinels (`"[Object]"`, `"[Array]"`, `"[Function]"`). This breaks strong references and allows the `FinalizationRegistry` to safely garbage collect tracked objects.
+* **Large Strings:** Strings exceeding 200 characters are truncated (appended with `...[truncated]`).
+* **Iterables & Dates:** `Map` and `Set` instances are serialized to lightweight metadata (e.g., `{ __type: "Map", size: 5 }`), and `Date` objects are serialized to ISO strings.
+
+### 7. Memory Management (GC & Teardown)
 This library uses `FinalizationRegistry` to automatically garbage collect DAG nodes when your JS objects are destroyed. 
 
 However, `FinalizationRegistry` is not guaranteed to fire instantly, or at all in short-lived processes (like CLI scripts or Unit Tests). To prevent memory leaks between test runs, explicitly clear the store:
