@@ -13,7 +13,7 @@ When something goes wrong, you call `printLineage(bad_value)` and get the comple
 ## The Core Insight
 **Data should know its own history the way Git commits know their parents.**
 
-Unlike standard tracing or logging, `data-lineage` decouples the graph from the value. Values are tracked invisibly and immutably via a global `WeakMap`. The actual lineage graph lives in a centralized, O(1) ref-counted `GraphStore`, making it entirely memory-safe for massive ETL, ML, and financial calculation pipelines.
+Unlike standard tracing or logging, `data-lineage` decouples the graph from the value. Values are tracked invisibly and immutably via a global `WeakMap`. Lineage nodes reference their parents directly, allowing V8 to handle memory management natively without memory-leaking global registries.
 
 ## Features
 * 🛡️ **Memory Safe:** Native V8 Garbage Collection. By utilizing direct node references and `WeakMap`, history graphs are automatically pruned from memory the exact millisecond your data goes out of scope. No custom GC loops, no memory leaks.
@@ -172,9 +172,10 @@ const user = track({ id: 1, secret: "XYZ" }, "db", {
 ```
 ### 6. Snapshot Constraints & Memory Limits
 To guarantee that the history graph doesn't create memory leaks or bloat the V8 heap, the `snapshot` function enforces strict serialization rules at capture time:
-* **Nested References:** Nested objects, arrays, and functions are replaced with safe string sentinels (`"[Object]"`, `"[Array]"`, `"[Function]"`). This breaks strong references and allows the `FinalizationRegistry` to safely garbage collect tracked objects.
+* **Nested References:** Nested objects, arrays, and functions are replaced with safe string sentinels (`"[Object]"`, `"[Array]"`, `"[Function]"`). This breaks strong references and allows the V8 engine to safely garbage collect tracked objects natively.
 * **Large Strings:** Strings exceeding 200 characters are truncated (appended with `...[truncated]`).
 * **Iterables & Dates:** `Map` and `Set` instances are serialized to lightweight metadata (e.g., `{ __type: "Map", size: 5 }`), and `Date` objects are serialized to ISO strings.
+* **Chain Depth Limits:** To prevent long-lived "Chain" transformations (like a Redux store) from anchoring infinite history in memory, lineage chains are automatically severed at a maximum depth of `50`. This can be customized by passing `{ maxDepth: 100 }` via `TrackOptions`.
 
 ### 7. Memory Management (Native V8 GC)
 This library previously relied on a custom Garbage Collector (`FinalizationRegistry`) to delete orphaned history graphs. 

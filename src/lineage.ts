@@ -50,16 +50,8 @@ function snapshot(value: unknown, redact?: (key: string, value: unknown) => unkn
         result[k] = "[getter]";
       } else {
         const rawVal = (value as any)[k];
-        if (redact) {
-          const redacted = redact(k, rawVal);
-          // If the developer's redact hook returns an object, we safely stringify it 
-          // to break references without losing their custom redaction data.
-          result[k] = (redacted !== null && (typeof redacted === "object" || typeof redacted === "function")) 
-            ? safeStringify(redacted) 
-            : redacted;
-        } else {
-          result[k] = makeSafe(rawVal);
-        }
+        const safeVal = makeSafe(rawVal);
+        result[k] = redact ? redact(k, safeVal) : safeVal;
       }
     }
     if (keys.length > 10) result["__truncated"] = `...(${keys.length - 10} more properties)`;
@@ -80,9 +72,9 @@ function safeStringify(val: unknown): string {
 function makeNode(
   source: string,
   parents: InternalNode[],
+  ownDepth: number,
   operation?: string,
-  valueSnapshot?: unknown,
-  ownDepth: number = 0
+  valueSnapshot?: unknown
 ): InternalNode {
   return {
     id: uuid(),
@@ -101,7 +93,7 @@ function makeNode(
  * to the object will not be reflected in the lineage snapshot.
  */
 export function track<T extends object>(value: T, sourceName: string, options?: TrackOptions): T {
-  const node = makeNode(sourceName, [], undefined, snapshot(value, options?.redact), 0);
+  const node = makeNode(sourceName, [], 0, undefined, snapshot(value, options?.redact));
   trackingMap.set(value, node);
   return value;
 }
@@ -120,14 +112,12 @@ export function transform<T extends object>(
     .map(getNode)
     .filter((n): n is InternalNode => n !== undefined);
 
-  // Each parent independently evaluated — no cross-contamination
-  const maxDepth = options?.maxDepth ?? 50;
-  const ownDepth = parents.length > 0
+  const rawOwnDepth = parents.length > 0
     ? Math.max(...parents.map(p => p.ownDepth)) + 1
     : 0;
-  const severedParents = parents.filter(p => p.ownDepth < maxDepth);
-
-  const node = makeNode("transform", severedParents, operationName, snapshot(output, options?.redact), ownDepth);
+  const ownDepth = Math.min(rawOwnDepth, Number.MAX_SAFE_INTEGER - 1);
+  
+  const node = makeNode("transform", parents, ownDepth, operationName, snapshot(output, options?.redact));
   trackingMap.set(output, node);
   return output;
 }
@@ -179,9 +169,11 @@ export function getLineage(val: unknown): LineageNode | undefined {
   return getNode(val);
 }
 
-export function printLineage(val: unknown): string {
+export function printLineage(val: unknown, options?: { maxDepth?: number }): string {
   const rootNode = getNode(val);
   if (!rootNode) return "No lineage found.";
+  
+  const limit = options?.maxDepth ?? 50;
 
   const lines: string[] = [];
   const visited = new Set<string>();
@@ -212,8 +204,10 @@ export function printLineage(val: unknown): string {
     lines.push(`${indent}↳ ${label} @ ${time}  (id: ${node.id})${snap}`);
 
     // Push parents in reverse order so they pop out in their original order
-    for (let i = node.parents.length - 1; i >= 0; i--) {
-      stack.push({ node: node.parents[i], depth: depth + 1 });
+    if (depth < limit) {
+      for (let i = node.parents.length - 1; i >= 0; i--) {
+        stack.push({ node: node.parents[i], depth: depth + 1 });
+      }
     }
   }
 

@@ -13,7 +13,7 @@ export function uuid(): string {
 
 export interface TrackOptions {
   redact?: (key: string, value: unknown) => unknown;
-  maxDepth?: number; // Maximum ancestor depth to retain
+  maxDepth?: number; // Maximum ancestor depth to retain (default: 50)
 }
 
 export interface LineageError extends Error {
