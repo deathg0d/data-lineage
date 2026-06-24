@@ -129,6 +129,24 @@ try {
 }
 ```
 
+### 5. Reading the Lineage Log
+
+When you call `printLineage(value)`, it prints the history graph as a top-down, backward-in-time tree. It's designed to mimic stack traces but for your data:
+
+* **Top-level:** The top (least-indented) item is your *current* bad value and the last operation that produced it.
+* **Indentation:** Each level of indentation represents the *parents* (inputs) of the step above it. You are stepping backward in time as you read down and right.
+* **Nodes:** Every node shows the operation type (`transform:` or `source:`), a timestamp, its unique ID, and a snapshot of the value at that moment in time.
+* **Shared Nodes:** In complex pipelines, multiple branches might rely on the same input (a Diamond DAG). To prevent messy, infinite console loops, any node that has already been printed in the tree will be deduplicated and rendered as `↳ [shared node: id]`.
+
+Example:
+```text
+↳ transform: calculate_final_invoice @ 2026-06-22T13:42...  value: {"total": NaN}
+  ↳ transform: apply_discount @ 2026-06-22T13:42...  value: {"total": undefined} 
+    ↳ source: api:shopping_cart @ 2026-06-22T13:42...  value: {"items": 2}
+  ↳ source: db:user_profile @ 2026-06-22T13:42...  value: {"region": "NY", "discount": "BOGUS_STRING"}
+```
+*(In this example, the `db:user_profile` returned a bad discount string, which cascaded into an `undefined` total, eventually crashing the final calculation with `NaN`)*
+
 ---
 
 ## Important Architectural Caveats & "Gotchas"
