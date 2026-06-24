@@ -488,6 +488,7 @@ describe("data-lineage", () => {
       
       // The original source "src" will be correctly pruned to prevent infinite memory chains.
       assert.doesNotMatch(out, /source: src/);
+      assert.match(out, /step_50/);
     });
 
     it("Re-tracking the same object: calling track then transform on the same object reference produces a chain where printLineage shows the transform node first and the source node as its parent", () => {
